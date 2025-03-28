@@ -10,15 +10,16 @@ Op :: enum {
 }
 
 main :: proc() {
-    a : Node = 42.
-    b : Node = 36.
-    c : Node = Tree{Op.Mul, &a, &b}
-    d : Node = 55.
-    tree : Node = Tree{Op.Add, &c, &d}
+    tape := Tape {}
+    a := tape_variable(&tape, 42.)
+    b := tape_variable(&tape, 36.)
+    c := tape_mul(&tape, a, b)
+    d := tape_variable(&tape, 55.)
+    tree := tape_add(&tape, c, d)
 
     fmt.printf("f: %s\n", tree)
-    fmt.printf("eval(f): %f\n", eval(&tree))
-    fmt.printf("derive(f, a): %f\n", derive(&tree, &a))
-    fmt.printf("derive(f, b): %f\n", derive(&tree, &b))
-    fmt.printf("derive(f, d): %f\n", derive(&tree, &d))
+    fmt.printf("eval(f): %f\n", tape_eval(&tape, tree))
+    fmt.printf("derive(f, a): %f\n", tape_derive(&tape, tree, a))
+    fmt.printf("derive(f, b): %f\n", tape_derive(&tape, tree, b))
+    fmt.printf("derive(f, d): %f\n", tape_derive(&tape, tree, d))
 }
