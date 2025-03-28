@@ -21,8 +21,6 @@ Node :: union {
 }
 
 main :: proc() {
-	program := "+ + * 😃 - /"
-	accumulator := 0
     a : Node = 42.
     b : Node = 36.
     c : Node = Tree{Op.Mul, &a, &b}
