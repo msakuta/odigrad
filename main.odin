@@ -39,16 +39,39 @@ output_dot :: proc(tape: ^Tape) {
     os.write_string(fp, dot)
 }
 
+exp_gen_graph :: proc(input, output, wrt: int) -> Maybe(int) {
+    c := context
+    tape := (^Tape)(c.user_ptr)
+    term, ok := tape_gen_graph(tape, input, wrt).(int)
+    if !ok {
+        return nil
+    }
+    return tape_mul(tape, term, output)
+}
+
 gaussian :: proc() {
-    tape := Tape{}
+    tape := tape_new()
+    context.user_ptr = &tape
     x := tape_variable(&tape, 1.)
     x2 := tape_mul(&tape, x, x)
     param := tape_neg(&tape, x2)
-    exp := tape_unary_fn(&tape, "exp", f = math.exp_f64, d = math.exp_f64, term = param)
+    exp := tape_unary_fn(&tape, "exp", f = math.exp_f64, d = math.exp_f64, term = param, gen_graph = exp_gen_graph)
+    d_exp, ok := tape_gen_graph(&tape, exp, x).(int)
+    if !ok {
+        fmt.eprintln("Gen graph returned nil")
+        return
+    }
+    fmt.printfln("d_exp: %d", d_exp)
+    dd_exp, ok2 := tape_gen_graph(&tape, d_exp, x).(int)
+    if !ok2 {
+        fmt.eprintln("Gen graph returned nil")
+        return
+    }
 
     for i in -20..=20 {
-        tape_set(&tape, x, f64(i) * 0.1)
-        fmt.printfln("[%d, %f, %f],", i, tape_eval(&tape, exp), tape_derive(&tape, exp, x))
+        xval := f64(i) * 0.1
+        tape_set(&tape, x, xval)
+        fmt.printfln("[%f, %f, %f, %f],", xval, tape_eval(&tape, exp), tape_derive(&tape, exp, x), tape_eval(&tape, dd_exp))
     }
 
     output_dot(&tape)
