@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:os"
 
 Op :: enum {
     Add,
@@ -22,4 +23,13 @@ main :: proc() {
     fmt.printf("derive(f, a): %f\n", tape_derive(&tape, tree, a))
     fmt.printf("derive(f, b): %f\n", tape_derive(&tape, tree, b))
     fmt.printf("derive(f, d): %f\n", tape_derive(&tape, tree, d))
+
+    dot := tape_dot(&tape)
+    fp, err := os.open("out.dot", os.O_CREATE | os.O_TRUNC)
+    if err != nil {
+        fmt.eprintln("Failed to open dot file")
+        return
+    }
+    defer os.close(fp)
+    os.write_string(fp, dot)
 }

@@ -1,5 +1,8 @@
 package main
 
+import "core:strings"
+import "core:fmt"
+
 TapeTree :: struct {
     op: Op,
     lhs,
@@ -72,4 +75,28 @@ tape_derive :: proc(tape: ^Tape, node: int, wrt: int) -> f64 {
             return 0.
     }
     return 0.
+}
+
+tape_dot :: proc(tape: ^Tape) -> string {
+    builder := strings.Builder{}
+    strings.write_string(&builder, "digraph {\n")
+    for node, i in tape.nodes {
+        switch v in node {
+            case TapeTree:
+                op: string
+                switch v.op {
+                    case .Add: op = "+"
+                    case .Sub: op = "-"
+                    case .Mul: op = "*"
+                    case .Div: op = "/"
+                }
+                fmt.sbprintfln(&builder, "i%d [label=\"%s\"];", i, op)
+                fmt.sbprintfln(&builder, "i%d -> i%d;", i, v.lhs)
+                fmt.sbprintfln(&builder, "i%d -> i%d;", i, v.rhs)
+            case f64:
+                fmt.sbprintfln(&builder, "i%d [label=\"%f\"];", i, v)
+        }
+    }
+    strings.write_string(&builder, "}")
+    return strings.to_string(builder)
 }
