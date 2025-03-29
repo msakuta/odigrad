@@ -48,7 +48,7 @@ gaussian :: proc() {
 
     for i in -20..=20 {
         tape_set(&tape, x, f64(i) * 0.1)
-        fmt.printfln("[%d, %f],", i, tape_eval(&tape, exp))
+        fmt.printfln("[%d, %f, %f],", i, tape_eval(&tape, exp), tape_derive(&tape, exp, x))
     }
 
     output_dot(&tape)

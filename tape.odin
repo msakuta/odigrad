@@ -36,6 +36,24 @@ tape_variable :: proc(tape: ^Tape, val: f64) -> int {
     return len(&tape.nodes) - 1
 }
 
+tape_add :: proc(tape: ^Tape, lhs, rhs: int) -> int {
+    append(&tape.nodes, TapeOp{
+        op = Op.Add,
+        lhs = lhs,
+        rhs = rhs,
+    })
+    return len(&tape.nodes) - 1
+}
+
+tape_sub :: proc(tape: ^Tape, lhs, rhs: int) -> int {
+    append(&tape.nodes, TapeOp{
+        op = Op.Sub,
+        lhs = lhs,
+        rhs = rhs,
+    })
+    return len(&tape.nodes) - 1
+}
+
 tape_mul :: proc(tape: ^Tape, lhs, rhs: int) -> int {
     append(&tape.nodes, TapeOp{
         op = Op.Mul,
@@ -45,9 +63,9 @@ tape_mul :: proc(tape: ^Tape, lhs, rhs: int) -> int {
     return len(&tape.nodes) - 1
 }
 
-tape_add :: proc(tape: ^Tape, lhs, rhs: int) -> int {
+tape_div :: proc(tape: ^Tape, lhs, rhs: int) -> int {
     append(&tape.nodes, TapeOp{
-        op = Op.Add,
+        op = Op.Div,
         lhs = lhs,
         rhs = rhs,
     })
