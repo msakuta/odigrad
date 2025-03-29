@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:os"
+import "core:math"
 
 Op :: enum {
     Add,
@@ -10,7 +11,7 @@ Op :: enum {
     Div,
 }
 
-main :: proc() {
+simple_derive :: proc() {
     tape := Tape {}
     a := tape_variable(&tape, 42.)
     b := tape_variable(&tape, 36.)
@@ -24,7 +25,11 @@ main :: proc() {
     fmt.printf("derive(f, b): %f\n", tape_derive(&tape, tree, b))
     fmt.printf("derive(f, d): %f\n", tape_derive(&tape, tree, d))
 
-    dot := tape_dot(&tape)
+    output_dot(&tape)
+}
+
+output_dot :: proc(tape: ^Tape) {
+    dot := tape_dot(tape)
     fp, err := os.open("out.dot", os.O_CREATE | os.O_TRUNC)
     if err != nil {
         fmt.eprintln("Failed to open dot file")
@@ -32,4 +37,27 @@ main :: proc() {
     }
     defer os.close(fp)
     os.write_string(fp, dot)
+}
+
+gaussian :: proc() {
+    tape := Tape{}
+    x := tape_variable(&tape, 1.)
+    x2 := tape_mul(&tape, x, x)
+    param := tape_neg(&tape, x2)
+    exp := tape_unary_fn(&tape, "exp", f = math.exp_f64, d = math.exp_f64, term = param)
+
+    for i in -20..=20 {
+        tape_set(&tape, x, f64(i) * 0.1)
+        fmt.printfln("[%d, %f],", i, tape_eval(&tape, exp))
+    }
+
+    output_dot(&tape)
+}
+
+main :: proc() {
+    if 1 < len(os.args) && os.args[1] == "gaussian" {
+        gaussian()
+    } else {
+        simple_derive()
+    }
 }
