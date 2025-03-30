@@ -68,10 +68,21 @@ gaussian :: proc() {
         return
     }
 
+    tape_derive_reverse(&tape, exp)
+    fmt.printfln("grad: %f", tape.nodes[x].grad)
+
     for i in -20..=20 {
         xval := f64(i) * 0.1
         tape_set(&tape, x, xval)
-        fmt.printfln("[%f, %f, %f, %f],", xval, tape_eval(&tape, exp), tape_derive(&tape, exp, x), tape_eval(&tape, dd_exp))
+        fval := tape_eval(&tape, exp)
+        tape_clear_grad(&tape)
+        tape_derive_reverse(&tape, exp)
+        fmt.printfln("[%f, %f, %f, %f, %f],",
+            xval,
+            fval,
+            tape_derive(&tape, exp, x),
+            tape.nodes[x].grad,
+            tape_eval(&tape, dd_exp))
     }
 
     output_dot(&tape)

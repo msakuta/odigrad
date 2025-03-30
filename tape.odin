@@ -6,7 +6,8 @@ import "core:fmt"
 TapeOp :: struct {
     op: Op,
     lhs,
-    rhs: int
+    rhs: int,
+    grad: f64,
 }
 
 TapeUFunc :: struct {
@@ -14,18 +15,26 @@ TapeUFunc :: struct {
     d: proc "contextless" (f64) -> f64,
     name: string,
     gen_graph: Maybe(proc(int, int, int) -> Maybe(int)),
-    term: int
+    term: int,
 }
 
 TapeNeg :: struct {
-    term: int
+    term: int,
 }
 
-TapeNode :: union {
+TapeVar :: struct {}
+
+TapeUnion :: union {
     TapeOp,
     TapeUFunc,
     TapeNeg,
-    f64,
+    TapeVar,
+}
+
+TapeNode :: struct {
+    uni: TapeUnion,
+    data: f64,
+    grad: f64,
 }
 
 Tape :: struct {
@@ -40,42 +49,53 @@ tape_new :: proc() -> Tape {
 }
 
 tape_variable :: proc(tape: ^Tape, val: f64) -> int {
-    append(&tape.nodes, val)
+    append(&tape.nodes, TapeNode{
+        uni = TapeVar{},
+        data = val,
+    })
     return len(&tape.nodes) - 1
 }
 
 tape_add :: proc(tape: ^Tape, lhs, rhs: int) -> int {
-    append(&tape.nodes, TapeOp{
-        op = Op.Add,
-        lhs = lhs,
-        rhs = rhs,
+    append(&tape.nodes, TapeNode{
+        uni = TapeOp{
+            op = Op.Add,
+            lhs = lhs,
+            rhs = rhs,
+        }
     })
     return len(&tape.nodes) - 1
 }
 
 tape_sub :: proc(tape: ^Tape, lhs, rhs: int) -> int {
-    append(&tape.nodes, TapeOp{
-        op = Op.Sub,
-        lhs = lhs,
-        rhs = rhs,
+    append(&tape.nodes, TapeNode{
+        uni = TapeOp{
+            op = Op.Sub,
+            lhs = lhs,
+            rhs = rhs,
+        }
     })
     return len(&tape.nodes) - 1
 }
 
 tape_mul :: proc(tape: ^Tape, lhs, rhs: int) -> int {
-    append(&tape.nodes, TapeOp{
-        op = Op.Mul,
-        lhs = lhs,
-        rhs = rhs,
+    append(&tape.nodes, TapeNode{
+        uni = TapeOp{
+            op = Op.Mul,
+            lhs = lhs,
+            rhs = rhs,
+        }
     })
     return len(&tape.nodes) - 1
 }
 
 tape_div :: proc(tape: ^Tape, lhs, rhs: int) -> int {
-    append(&tape.nodes, TapeOp{
-        op = Op.Div,
-        lhs = lhs,
-        rhs = rhs,
+    append(&tape.nodes, TapeNode{
+        uni = TapeOp{
+            op = Op.Div,
+            lhs = lhs,
+            rhs = rhs,
+        }
     })
     return len(&tape.nodes) - 1
 }
@@ -87,53 +107,61 @@ tape_unary_fn :: proc(tape: ^Tape,
     term: int,
     gen_graph: Maybe(proc(int, int, int) -> Maybe(int)) = nil
 ) -> int {
-    append(&tape.nodes, TapeUFunc{
-        name = name,
-        f = f,
-        d = d,
-        term = term,
-        gen_graph = gen_graph,
+    append(&tape.nodes, TapeNode{
+        uni = TapeUFunc{
+            name = name,
+            f = f,
+            d = d,
+            term = term,
+            gen_graph = gen_graph,
+        }
     })
     return len(&tape.nodes) - 1
 }
 
 tape_neg :: proc(tape: ^Tape, node: int) -> int {
-    append(&tape.nodes, TapeNeg{
-        term = node,
+    append(&tape.nodes, TapeNode{
+        uni = TapeNeg{
+            term = node,
+        }
     })
     return len(&tape.nodes) - 1
 }
 
 tape_set :: proc(tape: ^Tape, node: int, val: f64) {
-    #partial switch &v in tape.nodes[node] {
-        case f64: v = val
-    }
+    tape.nodes[node].data = val
 }
 
+/// Evaluate the expression tree and returns the value.
 tape_eval :: proc(tape: ^Tape, node: int) -> f64 {
-    switch v in tape.nodes[node] {
+    ret := 0.
+    switch v in tape.nodes[node].uni {
         case TapeOp:
             switch v.op {
-                case .Add: return tape_eval(tape, v.lhs) + tape_eval(tape, v.rhs)
-                case .Sub: return tape_eval(tape, v.lhs) - tape_eval(tape, v.rhs)
-                case .Mul: return tape_eval(tape, v.lhs) * tape_eval(tape, v.rhs)
-                case .Div: return tape_eval(tape, v.lhs) / tape_eval(tape, v.rhs)
+                case .Add: ret = tape_eval(tape, v.lhs) + tape_eval(tape, v.rhs)
+                case .Sub: ret = tape_eval(tape, v.lhs) - tape_eval(tape, v.rhs)
+                case .Mul: ret = tape_eval(tape, v.lhs) * tape_eval(tape, v.rhs)
+                case .Div: ret = tape_eval(tape, v.lhs) / tape_eval(tape, v.rhs)
             }
         case TapeUFunc:
-            return v.f(tape_eval(tape, v.term))
+            ret = v.f(tape_eval(tape, v.term))
         case TapeNeg:
-            return -tape_eval(tape, v.term)
-        case f64:
-            return v
+            ret = -tape_eval(tape, v.term)
+        case TapeVar:
+            ret = tape.nodes[node].data
     }
-    return 0.
+    tape.nodes[node].data = ret
+    return ret
 }
 
+/// Forward mode automatic differentiaton. It requires 2 variables as inputs,
+/// the function value (f in f(x)) and the variable to derive with respect to
+/// (x in f(x)).
 tape_derive :: proc(tape: ^Tape, node: int, wrt: int) -> f64 {
     if node == wrt {
         return 1.
     }
-    switch v in tape.nodes[node] {
+    switch v in tape.nodes[node].uni {
         case TapeOp:
             switch v.op {
                 case .Add: return tape_derive(tape, v.lhs, wrt) + tape_derive(tape, v.rhs, wrt)
@@ -148,17 +176,69 @@ tape_derive :: proc(tape: ^Tape, node: int, wrt: int) -> f64 {
             return tape_derive(tape, v.term, wrt) * v.d(tape_eval(tape, v.term))
         case TapeNeg:
             return -tape_derive(tape, v.term, wrt)
-        case f64:
+        case TapeVar:
             return 0.
     }
     return 0.
+}
+
+tape_clear_grad :: proc(tape: ^Tape) {
+    for &node in tape.nodes {
+        node.grad = 0.
+    }
+}
+
+/// Reverse mode automatic differentiation, a.k.a. backpropagation.
+/// The expression tree should have been `tape_eval`-ed beforehand.
+/// After this function returns, each of `tape.nodes[i].grad` will
+/// contain the derivative from that variable to the given variable `idx`.
+tape_derive_reverse :: proc(tape: ^Tape, idx: int) {
+    tape_clear_grad(tape)
+    tape.nodes[idx].grad = 1.
+    for i := idx; 0 <= i; i -= 1 {
+        node := &tape.nodes[i]
+        grad := node.grad
+        switch v in node.uni {
+            case TapeVar:
+            case TapeOp:
+                switch v.op {
+                    case .Add:
+                        tape_set_grad(tape, v.lhs, grad)
+                        tape_set_grad(tape, v.rhs, grad)
+                    case .Sub:
+                        tape_set_grad(tape, v.lhs, grad)
+                        tape_set_grad(tape, v.rhs, -grad)
+                    case .Mul:
+                        erhs := tape.nodes[v.rhs].data
+                        elhs := tape.nodes[v.lhs].data
+                        tape_set_grad(tape, v.lhs, grad * erhs)
+                        tape_set_grad(tape, v.rhs, grad * elhs)
+                    case .Div:
+                        erhs := tape.nodes[v.rhs].data
+                        elhs := tape.nodes[v.lhs].data
+                        tape_set_grad(tape, v.lhs, grad / erhs)
+                        tape_set_grad(tape, v.rhs, -grad * elhs / erhs / erhs)
+                }
+            case TapeUFunc:
+                val := tape.nodes[v.term].data
+                newgrad := grad * v.d(val)
+                //fmt.printfln("ufunc(x): x = %f", val)
+                tape_set_grad(tape, v.term, newgrad)
+            case TapeNeg:
+                tape_set_grad(tape, v.term, -node.grad)
+        }
+    }
+}
+
+tape_set_grad :: proc(tape: ^Tape, idx: int, grad: f64) {
+    tape.nodes[idx].grad += grad
 }
 
 tape_gen_graph :: proc(tape: ^Tape, node: int, wrt: int) -> Maybe(int) {
     if node == wrt {
         return 1
     }
-    #partial switch v in tape.nodes[node] {
+    #partial switch v in tape.nodes[node].uni {
         case TapeOp:
             lhs := tape_gen_graph(tape, v.lhs, wrt)
             rhs := tape_gen_graph(tape, v.rhs, wrt)
@@ -218,7 +298,7 @@ tape_dot :: proc(tape: ^Tape) -> string {
     builder := strings.Builder{}
     strings.write_string(&builder, "digraph {\n")
     for node, i in tape.nodes {
-        switch v in node {
+        switch v in node.uni {
             case TapeOp:
                 op: string
                 switch v.op {
@@ -236,8 +316,8 @@ tape_dot :: proc(tape: ^Tape) -> string {
             case TapeNeg:
                 fmt.sbprintfln(&builder, "i%d [label=\"-\" shape=rect style=filled fillcolor=\"#ffff7f\"];", i)
                 fmt.sbprintfln(&builder, "i%d -> i%d;", i, v.term)
-            case f64:
-                fmt.sbprintfln(&builder, "i%d [label=\"%f\" shape=rect style=filled fillcolor=\"#ff7fff\"];", i, v)
+            case TapeVar:
+                fmt.sbprintfln(&builder, "i%d [label=\"%f\" shape=rect style=filled fillcolor=\"#ff7fff\"];", i, node.data)
         }
     }
     strings.write_string(&builder, "}")
