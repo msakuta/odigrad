@@ -296,7 +296,7 @@ tape_gen_graph :: proc(tape: ^Tape, node: int, wrt: int) -> Maybe(int) {
 
 tape_dot :: proc(tape: ^Tape) -> string {
     builder := strings.Builder{}
-    strings.write_string(&builder, "digraph {\n")
+    strings.write_string(&builder, "digraph {\nrankdir=TB;\n")
     for node, i in tape.nodes {
         switch v in node.uni {
             case TapeOp:
@@ -308,14 +308,14 @@ tape_dot :: proc(tape: ^Tape) -> string {
                     case .Div: op = "/"
                 }
                 fmt.sbprintfln(&builder, "i%d [label=\"%s\" shape=rect style=filled fillcolor=\"#ffff7f\"];", i, op)
-                fmt.sbprintfln(&builder, "i%d -> i%d;", i, v.lhs)
-                fmt.sbprintfln(&builder, "i%d -> i%d;", i, v.rhs)
+                fmt.sbprintfln(&builder, "i%d -> i%d;", v.lhs, i)
+                fmt.sbprintfln(&builder, "i%d -> i%d;", v.rhs, i)
             case TapeUFunc:
                 fmt.sbprintfln(&builder, "i%d [label=\"%s\" shape=rect style=filled fillcolor=\"#ffff7f\"];", i, v.name)
-                fmt.sbprintfln(&builder, "i%d -> i%d;", i, v.term)
+                fmt.sbprintfln(&builder, "i%d -> i%d;", v.term, i)
             case TapeNeg:
                 fmt.sbprintfln(&builder, "i%d [label=\"-\" shape=rect style=filled fillcolor=\"#ffff7f\"];", i)
-                fmt.sbprintfln(&builder, "i%d -> i%d;", i, v.term)
+                fmt.sbprintfln(&builder, "i%d -> i%d;", v.term, i)
             case TapeVar:
                 fmt.sbprintfln(&builder, "i%d [label=\"%f\" shape=rect style=filled fillcolor=\"#ff7fff\"];", i, node.data)
         }
