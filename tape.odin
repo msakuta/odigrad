@@ -13,7 +13,6 @@ TapeOp :: struct {
 TapeUFunc :: struct {
     f: proc "contextless" (f64) -> f64,
     d: proc "contextless" (f64) -> f64,
-    name: string,
     gen_graph: Maybe(proc(int, int, int) -> Maybe(int)),
     term: int,
 }
@@ -33,6 +32,7 @@ TapeUnion :: union {
 
 TapeNode :: struct {
     uni: TapeUnion,
+    name: string,
     data: f64,
     grad: f64,
 }
@@ -43,14 +43,15 @@ Tape :: struct {
 
 tape_new :: proc() -> Tape {
     tape := Tape {}
-    tape_variable(&tape, 0.)
-    tape_variable(&tape, 1.)
+    tape_variable(&tape, "0", 0.)
+    tape_variable(&tape, "1", 1.)
     return tape
 }
 
-tape_variable :: proc(tape: ^Tape, val: f64) -> int {
+tape_variable :: proc(tape: ^Tape, name: string, val: f64) -> int {
     append(&tape.nodes, TapeNode{
         uni = TapeVar{},
+        name = name,
         data = val,
     })
     return len(&tape.nodes) - 1
@@ -109,12 +110,12 @@ tape_unary_fn :: proc(tape: ^Tape,
 ) -> int {
     append(&tape.nodes, TapeNode{
         uni = TapeUFunc{
-            name = name,
             f = f,
             d = d,
             term = term,
             gen_graph = gen_graph,
-        }
+        },
+        name = name,
     })
     return len(&tape.nodes) - 1
 }
@@ -311,13 +312,13 @@ tape_dot :: proc(tape: ^Tape) -> string {
                 fmt.sbprintfln(&builder, "i%d -> i%d;", v.lhs, i)
                 fmt.sbprintfln(&builder, "i%d -> i%d;", v.rhs, i)
             case TapeUFunc:
-                fmt.sbprintfln(&builder, "i%d [label=\"%s\" shape=rect style=filled fillcolor=\"#ffff7f\"];", i, v.name)
+                fmt.sbprintfln(&builder, "i%d [label=\"%s\" shape=rect style=filled fillcolor=\"#ffff7f\"];", i, node.name)
                 fmt.sbprintfln(&builder, "i%d -> i%d;", v.term, i)
             case TapeNeg:
                 fmt.sbprintfln(&builder, "i%d [label=\"-\" shape=rect style=filled fillcolor=\"#ffff7f\"];", i)
                 fmt.sbprintfln(&builder, "i%d -> i%d;", v.term, i)
             case TapeVar:
-                fmt.sbprintfln(&builder, "i%d [label=\"%f\" shape=rect style=filled fillcolor=\"#ff7fff\"];", i, node.data)
+                fmt.sbprintfln(&builder, "i%d [label=\"%s: %f\" shape=rect style=filled fillcolor=\"#ff7fff\"];", i, node.name, node.data)
         }
     }
     strings.write_string(&builder, "}")

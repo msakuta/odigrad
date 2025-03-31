@@ -13,10 +13,10 @@ Op :: enum {
 
 simple_derive :: proc() {
     tape := Tape {}
-    a := tape_variable(&tape, 42.)
-    b := tape_variable(&tape, 36.)
+    a := tape_variable(&tape, "a", 42.)
+    b := tape_variable(&tape, "b", 36.)
     c := tape_mul(&tape, a, b)
-    d := tape_variable(&tape, 55.)
+    d := tape_variable(&tape, "d", 55.)
     tree := tape_add(&tape, c, d)
 
     fmt.printf("f: %s\n", tree)
@@ -49,10 +49,31 @@ exp_gen_graph :: proc(input, output, wrt: int) -> Maybe(int) {
     return tape_mul(tape, term, output)
 }
 
-gaussian :: proc() {
+sine_demo :: proc() -> string {
+    file, ok := os.open("zigdata.csv", os.O_CREATE | os.O_TRUNC)
+    defer os.close(file)
+
+    fmt.println("x, sin(x^2), d(sin(x^2))/dx,\n")
+
+    tape := tape_new()
+    x := tape_variable(&tape, "x", 0.0)
+    x2 := tape_mul(&tape, x, x)
+    sin_x := tape_unary_fn(&tape, "sin", math.sin, math.cos, x2)
+    for i in 0..<100 {
+        xval := (f64(i) - 50.0) / 10.0
+        tape_clear_grad(&tape)
+        tape_set(&tape, x, xval)
+        sin_xval := tape_eval(&tape, sin_x)
+        dsin_xval := tape_derive(&tape, sin_x, x)
+        fmt.printfln("%f, %f, %f\n", xval, sin_xval, dsin_xval)
+    }
+    return ""
+}
+
+gaussian_demo :: proc() {
     tape := tape_new()
     context.user_ptr = &tape
-    x := tape_variable(&tape, 1.)
+    x := tape_variable(&tape, "x", 1.)
     x2 := tape_mul(&tape, x, x)
     param := tape_neg(&tape, x2)
     exp := tape_unary_fn(&tape, "exp", f = math.exp_f64, d = math.exp_f64, term = param, gen_graph = exp_gen_graph)
@@ -90,7 +111,7 @@ gaussian :: proc() {
 
 main :: proc() {
     if 1 < len(os.args) && os.args[1] == "gaussian" {
-        gaussian()
+        gaussian_demo()
     } else {
         simple_derive()
     }
