@@ -1,4 +1,4 @@
-package main
+package odigrad
 
 import "core:strings"
 import "core:fmt"

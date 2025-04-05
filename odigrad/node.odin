@@ -1,4 +1,4 @@
-package main
+package odigrad
 
 Tree :: struct {
     op: Op,
